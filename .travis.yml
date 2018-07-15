@@ -1,6 +1,8 @@
 language: android
 node_js:
   - 8
+before_install:
+  - sudo apt-get install npm
 install:
   - npm install -g cordova
 script:
