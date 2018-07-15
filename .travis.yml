@@ -1,3 +1,5 @@
 language: android
+install:
+  - npm install -g cordova
 script:
   - cordova build android
