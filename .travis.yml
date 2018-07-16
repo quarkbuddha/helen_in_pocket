@@ -1,12 +1,19 @@
 language: android
 android:
   components:
-    - build-tools-28.0.1
-    - android-26
-    - sys-img-x86-android-26
+  - build-tools-28.0.1
+  - android-26
+  - sys-img-x86-android-26
 before_install:
-  - nvm install 8
+- nvm install 8
 install:
-  - npm install -g cordova
+- npm install -g cordova
 script:
-  - cordova build android
+- cordova build android --release
+deploy:
+  provider: releases
+  api_key:
+    secure: PMXKeh0LoXg5cqqZ/GTpUkNAfh9YaZvbj7LZP2Er9a95JT5mtS0If2+i1p7rF8Ton0jDNNuVwBfmBUEY66IBFRYOzmfjbnoBs9+AeiEpGWmNqVXm44S/LnSGsVQru5tUicsr32eb/a6yqtaKGITDMtO/PaNqAY3siBIIavi6XDafpNoJh/dMAWV3qYfX3OtkLtg9fgrwtimx/A04/jU69UX6aVwu02okwDye1XEijSZLJ5IxTypGbi7DO1K7uNxTvNxsII/TAdxfN2nLbOWSXicuLvHceLcIp1/gZRerwUV+CcWdy2W1cuAbhXjfd59OZ7/CY/fowdPXrnNPewbSrfOhRVHoQQinDKl8Hf6r1NvZWTA3RcY79rwaWrqOx/jBCUaGJm4eLD7zaoCFLSsS+l36wwACb2g7hJ9N0Cd/3KBVrs7LOm05sox6kT7cb+DFZjO1KRkBBLDtQlgdfZUng1xn2M2Wn0PeR2Fnvn7ALVg7AJJa5we+zd/7MsJQzWKrYauIni+uOvYAVaRaWFCxWK0AEGXhb+DKrmXA8O/9ZrW/hq1bapXOLTgdgPN+wjWU4Z+7wn+fAEC5O/CLTZ2MExIPXQ9AMqu9yrkqUWQGN+I6hrJo6iP3gc7dIvpxpPwz5b6nM8rhdNVgBcIerYLaQxM4CN1OIQ3KPX2OuTdVEfE=
+  file: "$TRAVIS_BUILD_DIR/platforms/android/app/build/outputs/apk/debug/app-release.apk"
+  on:
+    repo: quarkbuddha/helen_in_pocket
