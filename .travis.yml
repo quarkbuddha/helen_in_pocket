@@ -1,9 +1,6 @@
-matrix:
-  include:
-    - language: node_js
-      node_js:
-        - 8
-    - language: android
+language: android
+before_install:
+  - nvm install 8
 install:
   - npm install -g cordova
 script:
