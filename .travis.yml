@@ -17,4 +17,5 @@ deploy:
   skip_cleanup: true
   file: "platforms/android/app/build/outputs/apk/debug/app-release-unsigned.apk"
   on:
+    tags: true
     repo: quarkbuddha/helen_in_pocket
