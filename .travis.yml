@@ -4,6 +4,9 @@ android:
   - build-tools-28.0.1
   - android-26
   - sys-img-x86-android-26
+env:
+  global:
+    - secure: "O0LvaZY+BjIKRVLtHy7u9C1RAHCA/l9l20sWO7+axM0znXdo0iX0aSGnirHf9cySk4bY+EH4xtSSr+azYbFLlxxb+qy+z52SrJ2EHaY5k6oQP9hnX7/vXjUriV1dVGLAVaJs247NkJ95dLKO+q6zJv3tfegBeKmYSv5XujYbq91e+m2JNu2i4teWUpZpEdQsjONCEQoV3epICvLfjO5zVwvzGkfONcMmG+a4OmG1jahtCoxygWoGj5b0PIT9CBHKkyWgvZXlh/Rr8rbdcBrXEjFFHtBqGRs25T0fkr03ruvFRy/hw0RXzNG66eeHVAoov5Nk1W9HtYtj3mZUt6q7GpkNxyGIQhgYVHMtQtLB0NPYhNqWoTA/qHo9ax9DRLUm71RePL6qyYPw4+jLppN5n9amgQxjwVlcEGOHzTj3CN/UncR0yDcLepbRYQCMBShPwRM+HcsCufZY7RrD2UbHNrmWmKoBedB2LdJ5Q/udJIx5QI5xa8Gcl04jctQMqXDB7XBuY85LrqVOs6Zdy6ijL7/oUee+vIz4ubiLOxoipw0QwTNfTs86yeKFmUtz6n/Jat42ZFVYVwTs4qeCU81TUelMH5b3M4b0+ROYt4TLjzQWczDK7HOeCqY0z074BtK6CLpgT1WR6Yspa+LZSHTntrljHZbswgw1eT/xgzX9bKM="
 before_install:
 - nvm install 8
 install:
@@ -11,7 +14,7 @@ install:
 script:
 - cordova build android --release
 before_deploy:
-  - jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore helen-release-key.jks -storepass 666666 platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk helen
+  - jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore helen-release-key.jks -storepass $storepass platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk helen
   - zipalign -v 4 platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk platforms/android/app/build/outputs/apk/release/helen.apk
 deploy:
   provider: releases
