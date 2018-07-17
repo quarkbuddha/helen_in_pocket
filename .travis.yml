@@ -10,12 +10,15 @@ install:
 - npm install -g cordova
 script:
 - cordova build android --release
+before_deploy:
+  - jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore helen-release-key.jks -storepass 666666 platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk helen
+  - zipalign -v 4 platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk platforms/android/app/build/outputs/apk/release/helen.apk
 deploy:
   provider: releases
   api_key:
     secure: dkHCz6PRN3PNoDuRqQftuRVuFxaKAvulHsEvqYlVpStQ+omUc3J4nnurRdhi3fEHKbwg1XHkXFvRfGUb1qnPfe+ELXaTP+uNLHRtiOLQCFAPnM8YcTwr/cMZGN7s8XNi928v2MRCf3dgJN7hb/0Pr57SV82jHhpFt0D3DmtCakXk0sb+s5dSIOSL9+vTlcWsNFkdtT16wIf6cBlWH5XiL3CYawxtHQSoJQQdNZ3FVQ31qRErQ0LX/rn2wWWxFIQC1JpuZ7L+3Ktg5szo+4SSYBRkCzGdjbv6sIdDPVUM7bKT4ADaF+lFV3dAbt/3P4iNKTcrI7YKx3poGSuqjquO783+zPnN2Ut89Ze7LclQcfNAm+ksSkEmfK+qiZmxqeLWqaLNZRu/lMWJ5oRdDUuxloGiUpcAXRi0xahdA1fkuRtpN55ePCZ1Fx5GGb8CNUOygifK6Tr+ktYy78ROx12FVyNDusXn2WRWGnby5ERXCnIm5V7DEiPlhWxGsi80RoKyiDB4hnPgkAdcqz+LfVNxwDjxhUTMN1Ul49eofN4G1lplIhV3Ss6A7myCBBxttSeeguuv98tZZE6UXppUvXNq9cj93sGdF5guPkOnjrA8xQ73uCYNfU+QHtNHTbAvfSVCrBzEoSKVmduaNaEWTzxVPcHiUi3cpuAy7lDote/3mqM=
   skip_cleanup: true
-  file: "platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+  file: "platforms/android/app/build/outputs/apk/release/helen.apk"
   on:
     tags: true
     repo: quarkbuddha/helen_in_pocket
