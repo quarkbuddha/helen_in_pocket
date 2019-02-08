@@ -1,0 +1,635 @@
+diff --git a/config.xml b/config.xml
+index c3d5eb4..c0bb907 100644
+--- a/config.xml
++++ b/config.xml
+@@ -23,6 +23,7 @@
+         <allow-intent href="itms:*" />
+         <allow-intent href="itms-apps:*" />
+     </platform>
+-    <engine name="browser" spec="~5.0.3" />
+-    <engine name="android" spec="~7.0.0" />
++    <plugin name="aerogear-cordova-oauth2" spec="github:iocare/aerogear-cordova-oauth2" />
++    <engine name="browser" spec="^5.0.3" />
++    <engine name="android" spec="^7.0.0" />
+ </widget>
+diff --git a/package.json b/package.json
+index 53ff23b..33dd2e0 100644
+--- a/package.json
++++ b/package.json
+@@ -10,13 +10,17 @@
+   "author": "Apache Cordova Team",
+   "license": "Apache-2.0",
+   "dependencies": {
++    "aerogear-cordova-oauth2": "github:iocare/aerogear-cordova-oauth2",
++    "aerogear-reflect-cordova": "git+https://github.com/IOCare/aerogear-reflect-cordova.git",
+     "cordova-android": "^7.0.0",
+     "cordova-browser": "^5.0.3",
+-    "cordova-plugin-whitelist": "^1.3.3"
++    "cordova-plugin-whitelist": "^1.3.3",
++    "es6-promise-plugin": "git+https://github.com/vstirbu/PromisesPlugin.git"
+   },
+   "cordova": {
+     "plugins": {
+-      "cordova-plugin-whitelist": {}
++      "cordova-plugin-whitelist": {},
++      "aerogear-cordova-oauth2": {}
+     },
+     "platforms": [
+       "browser",
+diff --git a/platforms/android/android.json b/platforms/android/android.json
+index 5edeb2a..addf758 100644
+--- a/platforms/android/android.json
++++ b/platforms/android/android.json
+@@ -11,6 +11,24 @@
+             {
+               "xml": "<feature name=\"Whitelist\"><param name=\"android-package\" value=\"org.apache.cordova.whitelist.WhitelistPlugin\" /><param name=\"onload\" value=\"true\" /></feature>",
+               "count": 1
++            },
++            {
++              "xml": "<feature name=\"PushPlugin\"><param name=\"android-package\" value=\"org.apache.cordova.android.reflect.BasePlugin\" /></feature>",
++              "count": 1
++            },
++            {
++              "xml": "<feature name=\"OAuth2Plugin\"><param name=\"android-package\" value=\"org.jboss.aerogear.cordova.oauth2.OAuth2Plugin\" /></feature>",
++              "count": 1
++            }
++          ]
++        }
++      },
++      "AndroidManifest.xml": {
++        "parents": {
++          "/manifest/application": [
++            {
++              "xml": "<service android:name=\"org.jboss.aerogear.android.authorization.oauth2.OAuth2AuthzService\" />",
++              "count": 1
+             }
+           ]
+         }
+@@ -20,11 +38,38 @@
+   "installed_plugins": {
+     "cordova-plugin-whitelist": {
+       "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "es6-promise-plugin": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "org.jboss.aerogear.cordova.android.reflect": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "aerogear-cordova-oauth2": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
+     }
+   },
+   "dependent_plugins": {},
+-  "modules": [],
++  "modules": [
++    {
++      "id": "es6-promise-plugin.Promise",
++      "file": "plugins/es6-promise-plugin/www/promise.js",
++      "pluginId": "es6-promise-plugin",
++      "runs": true
++    },
++    {
++      "id": "aerogear-cordova-oauth2.oauth2",
++      "file": "plugins/aerogear-cordova-oauth2/www/oauth2.js",
++      "pluginId": "aerogear-cordova-oauth2",
++      "clobbers": [
++        "oauth2"
++      ]
++    }
++  ],
+   "plugin_metadata": {
+-    "cordova-plugin-whitelist": "1.3.3"
++    "cordova-plugin-whitelist": "1.3.3",
++    "es6-promise-plugin": "4.2.2",
++    "org.jboss.aerogear.cordova.android.reflect": "0.0.1",
++    "aerogear-cordova-oauth2": "1.0.5"
+   }
+ }
+\ No newline at end of file
+diff --git a/platforms/android/app/build.gradle b/platforms/android/app/build.gradle
+index 8951e85..397b020 100644
+--- a/platforms/android/app/build.gradle
++++ b/platforms/android/app/build.gradle
+@@ -91,6 +91,7 @@ ext {
+ }
+ 
+ // PLUGIN GRADLE EXTENSIONS START
++apply from: "../aerogear-cordova-oauth2/hellocordova-dependencies.gradle"
+ // PLUGIN GRADLE EXTENSIONS END
+ 
+ def hasBuildExtras = file('build-extras.gradle').exists()
+diff --git a/platforms/android/app/src/main/AndroidManifest.xml b/platforms/android/app/src/main/AndroidManifest.xml
+index 2d8aeb5..5a01cee 100644
+--- a/platforms/android/app/src/main/AndroidManifest.xml
++++ b/platforms/android/app/src/main/AndroidManifest.xml
+@@ -9,6 +9,7 @@
+                 <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+         </activity>
++        <service android:name="org.jboss.aerogear.android.authorization.oauth2.OAuth2AuthzService" />
+     </application>
+     <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="26" />
+ </manifest>
+diff --git a/platforms/android/app/src/main/assets/www/cordova_plugins.js b/platforms/android/app/src/main/assets/www/cordova_plugins.js
+index 5edaf51..81b547e 100644
+--- a/platforms/android/app/src/main/assets/www/cordova_plugins.js
++++ b/platforms/android/app/src/main/assets/www/cordova_plugins.js
+@@ -1,9 +1,27 @@
+ cordova.define('cordova/plugin_list', function(require, exports, module) {
+-module.exports = [];
++module.exports = [
++  {
++    "id": "es6-promise-plugin.Promise",
++    "file": "plugins/es6-promise-plugin/www/promise.js",
++    "pluginId": "es6-promise-plugin",
++    "runs": true
++  },
++  {
++    "id": "aerogear-cordova-oauth2.oauth2",
++    "file": "plugins/aerogear-cordova-oauth2/www/oauth2.js",
++    "pluginId": "aerogear-cordova-oauth2",
++    "clobbers": [
++      "oauth2"
++    ]
++  }
++];
+ module.exports.metadata = 
+ // TOP OF METADATA
+ {
+-  "cordova-plugin-whitelist": "1.3.3"
++  "cordova-plugin-whitelist": "1.3.3",
++  "es6-promise-plugin": "4.2.2",
++  "org.jboss.aerogear.cordova.android.reflect": "0.0.1",
++  "aerogear-cordova-oauth2": "1.0.5"
+ };
+ // BOTTOM OF METADATA
+ });
+\ No newline at end of file
+diff --git a/platforms/android/app/src/main/assets/www/index.html b/platforms/android/app/src/main/assets/www/index.html
+index 095e93b..8eb8eef 100644
+--- a/platforms/android/app/src/main/assets/www/index.html
++++ b/platforms/android/app/src/main/assets/www/index.html
+@@ -40,7 +40,11 @@
+             <h1>Apache Cordova</h1>
+             <div id="deviceready" class="blink">
+                 <p class="event listening">Connecting to Device</p>
+-                <p class="event received">Device is Ready</p>
++                <div class="event received">
++		  <p>Device is Ready</p>
++		  <button id="fblogin"">Log in via Facebook</button>
++		  <button id="googlelogin"">Log in via Google</button>
++		</div>
+             </div>
+         </div>
+         <script type="text/javascript" src="cordova.js"></script>
+diff --git a/platforms/android/app/src/main/assets/www/js/index.js b/platforms/android/app/src/main/assets/www/js/index.js
+index 6963dc9..c159657 100644
+--- a/platforms/android/app/src/main/assets/www/js/index.js
++++ b/platforms/android/app/src/main/assets/www/js/index.js
+@@ -20,6 +20,28 @@ var app = {
+     // Application Constructor
+     initialize: function() {
+         document.addEventListener('deviceready', this.onDeviceReady.bind(this), false);
++	document.getElementById("fblogin").addEventListener('click', function() {
++	    console.log('oauth2 is ' + oauth2);
++	    console.log('oauth2.facebook is ' + oauth2.facebook);
++	    oauth2.facebook.requestAccess()
++		.then( function( accessToken ){
++		    console.log('got access token ' + accessToken)
++		})
++		.catch( function( error ) {
++		    console.log('got error ' + error)
++		})
++	}, false);
++	document.getElementById("googlelogin").addEventListener('click', function() {
++	    console.log('oauth2 is ' + oauth2);
++	    console.log('oauth2.google is ' + oauth2.google);
++	    oauth2.google.requestAccess()
++		.then( function( accessToken ){
++		    console.log('got access token ' + accessToken)
++		})
++		.catch( function( error ) {
++		    console.log('got error ' + error)
++		});
++	}, false);
+     },
+ 
+     // deviceready Event Handler
+@@ -28,6 +50,20 @@ var app = {
+     // 'pause', 'resume', etc.
+     onDeviceReady: function() {
+         this.receivedEvent('deviceready');
++	oauth2.addFacebook({
++	    name: 'facebook',
++	    settings: {
++		clientId: '1511044619160050',
++		scopes: 'email,public_profile'
++	    }
++	});
++	oauth2.addGoogle({
++	    name: 'google',
++	    settings: {
++		clientId: '946335429559-kr7e1icnu90bgo6cv2q3tiurqurf7q84.apps.googleusercontent.com',
++		scopes: 'userinfo.email,userinfo.profile'
++	    }
++	});
+     },
+ 
+     // Update DOM on a Received Event
+@@ -43,4 +79,4 @@ var app = {
+     }
+ };
+ 
+-app.initialize();
+\ No newline at end of file
++app.initialize();
+diff --git a/platforms/android/app/src/main/res/xml/config.xml b/platforms/android/app/src/main/res/xml/config.xml
+index 85163fa..cec5635 100644
+--- a/platforms/android/app/src/main/res/xml/config.xml
++++ b/platforms/android/app/src/main/res/xml/config.xml
+@@ -4,6 +4,12 @@
+         <param name="android-package" value="org.apache.cordova.whitelist.WhitelistPlugin" />
+         <param name="onload" value="true" />
+     </feature>
++    <feature name="PushPlugin">
++        <param name="android-package" value="org.apache.cordova.android.reflect.BasePlugin" />
++    </feature>
++    <feature name="OAuth2Plugin">
++        <param name="android-package" value="org.jboss.aerogear.cordova.oauth2.OAuth2Plugin" />
++    </feature>
+     <name>HelloCordova</name>
+     <description>
+         A sample Apache Cordova application that responds to the deviceready event.
+diff --git a/platforms/android/platform_www/cordova_plugins.js b/platforms/android/platform_www/cordova_plugins.js
+index 5edaf51..81b547e 100644
+--- a/platforms/android/platform_www/cordova_plugins.js
++++ b/platforms/android/platform_www/cordova_plugins.js
+@@ -1,9 +1,27 @@
+ cordova.define('cordova/plugin_list', function(require, exports, module) {
+-module.exports = [];
++module.exports = [
++  {
++    "id": "es6-promise-plugin.Promise",
++    "file": "plugins/es6-promise-plugin/www/promise.js",
++    "pluginId": "es6-promise-plugin",
++    "runs": true
++  },
++  {
++    "id": "aerogear-cordova-oauth2.oauth2",
++    "file": "plugins/aerogear-cordova-oauth2/www/oauth2.js",
++    "pluginId": "aerogear-cordova-oauth2",
++    "clobbers": [
++      "oauth2"
++    ]
++  }
++];
+ module.exports.metadata = 
+ // TOP OF METADATA
+ {
+-  "cordova-plugin-whitelist": "1.3.3"
++  "cordova-plugin-whitelist": "1.3.3",
++  "es6-promise-plugin": "4.2.2",
++  "org.jboss.aerogear.cordova.android.reflect": "0.0.1",
++  "aerogear-cordova-oauth2": "1.0.5"
+ };
+ // BOTTOM OF METADATA
+ });
+\ No newline at end of file
+diff --git a/platforms/android/project.properties b/platforms/android/project.properties
+index 2ab2ba7..a010f0d 100644
+--- a/platforms/android/project.properties
++++ b/platforms/android/project.properties
+@@ -11,3 +11,4 @@
+ target=android-26
+ android.library.reference.1=CordovaLib
+ android.library.reference.2=app
++cordova.gradle.include.1=aerogear-cordova-oauth2/hellocordova-dependencies.gradle
+\ No newline at end of file
+diff --git a/platforms/browser/browser.json b/platforms/browser/browser.json
+index 0105eff..be80e9c 100644
+--- a/platforms/browser/browser.json
++++ b/platforms/browser/browser.json
+@@ -9,11 +9,34 @@
+   "installed_plugins": {
+     "cordova-plugin-whitelist": {
+       "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "es6-promise-plugin": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "aerogear-cordova-oauth2": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
+     }
+   },
+   "dependent_plugins": {},
+-  "modules": [],
++  "modules": [
++    {
++      "file": "plugins/es6-promise-plugin/www/promise.js",
++      "id": "es6-promise-plugin.Promise",
++      "pluginId": "es6-promise-plugin",
++      "runs": true
++    },
++    {
++      "file": "plugins/aerogear-cordova-oauth2/www/oauth2.js",
++      "id": "aerogear-cordova-oauth2.oauth2",
++      "pluginId": "aerogear-cordova-oauth2",
++      "clobbers": [
++        "oauth2"
++      ]
++    }
++  ],
+   "plugin_metadata": {
+-    "cordova-plugin-whitelist": "1.3.3"
++    "cordova-plugin-whitelist": "1.3.3",
++    "es6-promise-plugin": "4.2.2",
++    "aerogear-cordova-oauth2": "1.0.5"
+   }
+ }
+\ No newline at end of file
+diff --git a/platforms/browser/platform_www/cordova_plugins.js b/platforms/browser/platform_www/cordova_plugins.js
+index 69ef779..f7d451a 100644
+--- a/platforms/browser/platform_www/cordova_plugins.js
++++ b/platforms/browser/platform_www/cordova_plugins.js
+@@ -1,9 +1,26 @@
+ cordova.define('cordova/plugin_list', function(require, exports, module) {
+-module.exports = [];
++module.exports = [
++    {
++        "file": "plugins/es6-promise-plugin/www/promise.js",
++        "id": "es6-promise-plugin.Promise",
++        "pluginId": "es6-promise-plugin",
++        "runs": true
++    },
++    {
++        "file": "plugins/aerogear-cordova-oauth2/www/oauth2.js",
++        "id": "aerogear-cordova-oauth2.oauth2",
++        "pluginId": "aerogear-cordova-oauth2",
++        "clobbers": [
++            "oauth2"
++        ]
++    }
++];
+ module.exports.metadata = 
+ // TOP OF METADATA
+ {
+-    "cordova-plugin-whitelist": "1.3.3"
++    "cordova-plugin-whitelist": "1.3.3",
++    "es6-promise-plugin": "4.2.2",
++    "aerogear-cordova-oauth2": "1.0.5"
+ }
+ // BOTTOM OF METADATA
+ });
+\ No newline at end of file
+diff --git a/platforms/browser/www/cordova_plugins.js b/platforms/browser/www/cordova_plugins.js
+index 69ef779..f7d451a 100644
+--- a/platforms/browser/www/cordova_plugins.js
++++ b/platforms/browser/www/cordova_plugins.js
+@@ -1,9 +1,26 @@
+ cordova.define('cordova/plugin_list', function(require, exports, module) {
+-module.exports = [];
++module.exports = [
++    {
++        "file": "plugins/es6-promise-plugin/www/promise.js",
++        "id": "es6-promise-plugin.Promise",
++        "pluginId": "es6-promise-plugin",
++        "runs": true
++    },
++    {
++        "file": "plugins/aerogear-cordova-oauth2/www/oauth2.js",
++        "id": "aerogear-cordova-oauth2.oauth2",
++        "pluginId": "aerogear-cordova-oauth2",
++        "clobbers": [
++            "oauth2"
++        ]
++    }
++];
+ module.exports.metadata = 
+ // TOP OF METADATA
+ {
+-    "cordova-plugin-whitelist": "1.3.3"
++    "cordova-plugin-whitelist": "1.3.3",
++    "es6-promise-plugin": "4.2.2",
++    "aerogear-cordova-oauth2": "1.0.5"
+ }
+ // BOTTOM OF METADATA
+ });
+\ No newline at end of file
+diff --git a/platforms/browser/www/index.html b/platforms/browser/www/index.html
+index 095e93b..6a6ec58 100644
+--- a/platforms/browser/www/index.html
++++ b/platforms/browser/www/index.html
+@@ -40,7 +40,10 @@
+             <h1>Apache Cordova</h1>
+             <div id="deviceready" class="blink">
+                 <p class="event listening">Connecting to Device</p>
+-                <p class="event received">Device is Ready</p>
++                <div class="event received">
++		  <p>Device is Ready</p>
++		  <button id="fblogin"">Log in via Facebook</button>
++		</div>
+             </div>
+         </div>
+         <script type="text/javascript" src="cordova.js"></script>
+diff --git a/platforms/browser/www/js/index.js b/platforms/browser/www/js/index.js
+index 6963dc9..3981490 100644
+--- a/platforms/browser/www/js/index.js
++++ b/platforms/browser/www/js/index.js
+@@ -20,6 +20,17 @@ var app = {
+     // Application Constructor
+     initialize: function() {
+         document.addEventListener('deviceready', this.onDeviceReady.bind(this), false);
++	document.getElementById("fblogin").addEventListener('click', function() {
++	    console.log('oauth2 is ' + oauth2);
++	    console.log('oauth2.facebook is ' + oauth2.facebook);
++	    oauth2.facebook.requestAccess()
++		.then( function( accessToken ){
++		    console.log('got access token ' + accessToken)
++		})
++		.catch( function( error ) {
++		    console.log('got error ' + error)
++		})
++	});
+     },
+ 
+     // deviceready Event Handler
+@@ -28,6 +39,13 @@ var app = {
+     // 'pause', 'resume', etc.
+     onDeviceReady: function() {
+         this.receivedEvent('deviceready');
++	oauth2.addFacebook({
++	    name: 'facebook',
++	    settings: {
++		clientId: '1511044619160050',
++		scopes: 'email,public_profile'
++	    }
++	});
+     },
+ 
+     // Update DOM on a Received Event
+@@ -43,4 +61,4 @@ var app = {
+     }
+ };
+ 
+-app.initialize();
+\ No newline at end of file
++app.initialize();
+diff --git a/plugins/android.json b/plugins/android.json
+index b72f6fd..0b6afcf 100644
+--- a/plugins/android.json
++++ b/plugins/android.json
+@@ -9,7 +9,17 @@
+   "installed_plugins": {
+     "cordova-plugin-whitelist": {
+       "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "aerogear-cordova-oauth2": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
+     }
+   },
+-  "dependent_plugins": {}
++  "dependent_plugins": {
++    "es6-promise-plugin": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "org.jboss.aerogear.cordova.android.reflect": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
++    }
++  }
+ }
+\ No newline at end of file
+diff --git a/plugins/browser.json b/plugins/browser.json
+index b72f6fd..161ac26 100644
+--- a/plugins/browser.json
++++ b/plugins/browser.json
+@@ -9,7 +9,14 @@
+   "installed_plugins": {
+     "cordova-plugin-whitelist": {
+       "PACKAGE_NAME": "io.cordova.hellocordova"
++    },
++    "aerogear-cordova-oauth2": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
+     }
+   },
+-  "dependent_plugins": {}
++  "dependent_plugins": {
++    "es6-promise-plugin": {
++      "PACKAGE_NAME": "io.cordova.hellocordova"
++    }
++  }
+ }
+\ No newline at end of file
+diff --git a/plugins/fetch.json b/plugins/fetch.json
+index e5f339c..0983119 100644
+--- a/plugins/fetch.json
++++ b/plugins/fetch.json
+@@ -6,5 +6,29 @@
+     },
+     "is_top_level": true,
+     "variables": {}
++  },
++  "aerogear-cordova-oauth2": {
++    "source": {
++      "type": "registry",
++      "id": "IOCare/aerogear-cordova-oauth2"
++    },
++    "is_top_level": true,
++    "variables": {}
++  },
++  "es6-promise-plugin": {
++    "source": {
++      "type": "registry",
++      "id": "https://github.com/vstirbu/PromisesPlugin.git"
++    },
++    "is_top_level": false,
++    "variables": {}
++  },
++  "org.jboss.aerogear.cordova.android.reflect": {
++    "source": {
++      "type": "registry",
++      "id": "https://github.com/IOCare/aerogear-reflect-cordova.git"
++    },
++    "is_top_level": false,
++    "variables": {}
+   }
+ }
+\ No newline at end of file
+diff --git a/www/index.html b/www/index.html
+index 095e93b..8eb8eef 100644
+--- a/www/index.html
++++ b/www/index.html
+@@ -40,7 +40,11 @@
+             <h1>Apache Cordova</h1>
+             <div id="deviceready" class="blink">
+                 <p class="event listening">Connecting to Device</p>
+-                <p class="event received">Device is Ready</p>
++                <div class="event received">
++		  <p>Device is Ready</p>
++		  <button id="fblogin"">Log in via Facebook</button>
++		  <button id="googlelogin"">Log in via Google</button>
++		</div>
+             </div>
+         </div>
+         <script type="text/javascript" src="cordova.js"></script>
+diff --git a/www/js/index.js b/www/js/index.js
+index 6963dc9..c159657 100644
+--- a/www/js/index.js
++++ b/www/js/index.js
+@@ -20,6 +20,28 @@ var app = {
+     // Application Constructor
+     initialize: function() {
+         document.addEventListener('deviceready', this.onDeviceReady.bind(this), false);
++	document.getElementById("fblogin").addEventListener('click', function() {
++	    console.log('oauth2 is ' + oauth2);
++	    console.log('oauth2.facebook is ' + oauth2.facebook);
++	    oauth2.facebook.requestAccess()
++		.then( function( accessToken ){
++		    console.log('got access token ' + accessToken)
++		})
++		.catch( function( error ) {
++		    console.log('got error ' + error)
++		})
++	}, false);
++	document.getElementById("googlelogin").addEventListener('click', function() {
++	    console.log('oauth2 is ' + oauth2);
++	    console.log('oauth2.google is ' + oauth2.google);
++	    oauth2.google.requestAccess()
++		.then( function( accessToken ){
++		    console.log('got access token ' + accessToken)
++		})
++		.catch( function( error ) {
++		    console.log('got error ' + error)
++		});
++	}, false);
+     },
+ 
+     // deviceready Event Handler
+@@ -28,6 +50,20 @@ var app = {
+     // 'pause', 'resume', etc.
+     onDeviceReady: function() {
+         this.receivedEvent('deviceready');
++	oauth2.addFacebook({
++	    name: 'facebook',
++	    settings: {
++		clientId: '1511044619160050',
++		scopes: 'email,public_profile'
++	    }
++	});
++	oauth2.addGoogle({
++	    name: 'google',
++	    settings: {
++		clientId: '946335429559-kr7e1icnu90bgo6cv2q3tiurqurf7q84.apps.googleusercontent.com',
++		scopes: 'userinfo.email,userinfo.profile'
++	    }
++	});
+     },
+ 
+     // Update DOM on a Received Event
+@@ -43,4 +79,4 @@ var app = {
+     }
+ };
+ 
+-app.initialize();
+\ No newline at end of file
++app.initialize();
